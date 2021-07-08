@@ -650,15 +650,36 @@ class Config {
 				];
 				break;
 			case 'taxonomy':
+				$type = 'TermObjectUnion';
+
+				if ( isset( $acf_field['taxonomy'] ) ) {
+					$tax_object = get_taxonomy( $acf_field['taxonomy'] );
+					if ( isset( $tax_object->graphql_single_name ) ) {
+						$type = $tax_object->graphql_single_name;
+					}
+				}
+				$is_multiple = isset($acf_field['field_type']) && in_array( $acf_field['field_type'], array('checkbox', 'multi_select'));
+				if ($is_multiple) {
+					$type = [ 'list_of' => $type ];
+				}
+
 				$field_config = [
-					'type'    => [ 'list_of' => 'TermObjectUnion' ],
-					'resolve' => function( $root, $args, $context, $info ) use ( $acf_field ) {
+					'type'    => $type,
+					'resolve' => function( $root, $args, $context, $info ) use ( $acf_field, $is_multiple ) {
 						$value = $this->get_acf_field_value( $root, $acf_field );
 						$terms = [];
 						if ( ! empty( $value ) && is_array( $value ) ) {
 							foreach ( $value as $term ) {
 								$terms[] = DataSource::resolve_term_object( (int) $term, $context );
 							}
+						}else{
+							$terms[] = DataSource::resolve_term_object( (int) $value, $context );
+						}
+
+						if ($is_multiple) {
+							$terms = ! empty( $terms ) ? $terms : null;
+						} else {
+							$terms = ! empty( $terms[0] ) ? $terms[0] : null;
 						}
 
 						return $terms;
